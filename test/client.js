@@ -8,7 +8,6 @@
 
 import { expect } from 'chai';
 import {Client} from '../dist/index.js';
-console.log('Client: ', Client);
 
 describe('Client', () => {
   // Confirm that the Client value is a function (i.e. a class)
