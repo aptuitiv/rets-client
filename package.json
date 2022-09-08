@@ -9,14 +9,12 @@
     "node": ">= 16"
   },
   "scripts": {
+    "build": "node scripts/build.js",
     "lint": "eslint --fix --ext .js,.ts .",
-    "build": "esbuild ./src/index.ts --outdir=dist --bundle --format=esm",
-    "build2": "node scripts/build.js",
-    "watch": "node scripts/watch.js",
-    "dev": "esbuild ./src/index.ts --outdir=dist --bundle --format=esm --watch",
     "test": "mocha",
     "ts-build": "tsc",
-    "ts-dev": "tsc -w"
+    "ts-dev": "tsc -w",
+    "watch": "node scripts/watch.js"
   },
   "repository": {
     "type": "git",
