@@ -25,8 +25,8 @@ node_modules
 # Local History for Visual Studio Code
 .history/
 
-# Distribution files in a "dist" folder in any sub folder, except for ap/interface/dist
-dist
+# Typescript build folder
+ts-out
 
 # Build files to ignore
 **/.eslintcache
