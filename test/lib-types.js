@@ -3,7 +3,7 @@
 =========================================================================== */
 
 import { expect } from 'chai';
-import { isObject } from '../src/lib/types.ts';
+import { isString, isStringWithValue, isObject } from '../src/lib/types.ts';
 
 describe('Tests', () => {
   context('isObject', () => {
@@ -17,6 +17,18 @@ describe('Tests', () => {
       expect(isObject('string')).to.be.false;
       expect(isObject(3)).to.be.false;
       expect(isObject()).to.be.false;
+    });
+  });
+  context('isString and isStringWithValue', () => {
+    it('should be a string', () => {
+      expect(isString('string')).to.be.true;
+      expect(isStringWithValue('b')).to.be.true;
+    });
+    it('should not be a string', () => {
+      expect(isString(9)).to.be.false;
+      expect(isString({ob: 'value'})).to.be.false;
+      expect(isString([3])).to.be.false;
+      expect(isStringWithValue('')).to.be.false;
     });
   });
 });

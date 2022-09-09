@@ -45,3 +45,19 @@ export const isDefined = <T>(thing: T | undefined): thing is T => typeof thing !
  * @returns {boolean}
  */
 export const isObject = (thing: any): thing is object => Object.prototype.toString.call(thing) === '[object Object]';
+
+/**
+ * Returns if the value is a string
+ *
+ * @param {mixed} thing The value to test
+ * @returns {boolean}
+ */
+export const isString = (thing: any): thing is string => typeof thing === 'string';
+
+/**
+  * Returns if the value is string and has a length greater than 0
+  *
+  * @param {mixed} thing The value to test
+  * @returns {boolean}
+  */
+export const isStringWithValue = (thing: any): thing is string => isString(thing) && thing.length > 0;
