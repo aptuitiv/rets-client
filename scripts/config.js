@@ -11,7 +11,9 @@ const config = {
     logLevel: 'info',
     outdir: 'dist',
     plugins: [
-        eslint()
+        eslint({
+            fix: true
+        })
     ]
 };
 
