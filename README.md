@@ -2,6 +2,8 @@
 
 Inspired by [aeq/rets-client](https://github.com/aeq/rets-client) and [martianboy/rets-client](https://github.com/martianboy/rets-client).
 
+Spec is based on <https://www.nar.realtor/retsorg.nsf/retsproto1.7d6.pdf>.
+
 ## Testing
 
 Tests use [Mocha](https://mochajs.org/) and [Chai](https://www.chaijs.com/).
