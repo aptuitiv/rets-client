@@ -2,7 +2,7 @@
 
 Inspired by [aeq/rets-client](https://github.com/aeq/rets-client) and [martianboy/rets-client](https://github.com/martianboy/rets-client).
 
-Spec is based on <https://www.nar.realtor/retsorg.nsf/retsproto1.7d6.pdf>.
+Spec is based on <https://www.nar.realtor/retsorg.nsf/retsproto1.7d6.pdf> and <https://www.reso.org/rets-specifications/>.
 
 ## Testing
 

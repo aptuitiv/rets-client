@@ -7,9 +7,15 @@ import eslint from 'esbuild-plugin-eslint';
 const config = {
     bundle: true,
     entryPoints: ['src/index.ts'],
+    external: [
+        'axios',
+        'axios-cookiejar-support',
+        'tough-cookie'
+    ],
     format: 'esm',
     logLevel: 'info',
     outdir: 'dist',
+    platform: 'node',
     plugins: [
         eslint({
             fix: true

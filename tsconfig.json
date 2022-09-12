@@ -2,6 +2,7 @@
     "include": ["src/**/*"],
     "compilerOptions": {
         "module": "esnext",
+        "moduleResolution": "node",
         "target": "es6",
         "outDir": "ts-out",
     }
