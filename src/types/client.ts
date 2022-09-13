@@ -30,3 +30,8 @@ export type ClientOptionsParam = {
     username?: string
     userAgentPassword?: string
 }
+
+// URL actions to get other data from the RETS endpoint
+export type Actions = {
+    [key: string]: string
+}

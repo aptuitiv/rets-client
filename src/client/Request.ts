@@ -1,10 +1,15 @@
 /* ===========================================================================
-    Makes the requests to the RETS endpoing
+    Makes the requests to the RETS endpoint
+
+    This supports Basic and Digest authentication.
+    Digest authentication resources:
+    - https://www.sitepoint.com/understanding-http-digest-access-authentication/
+    - https://github.com/inorganik/digest-auth-request
 =========================================================================== */
 
 import * as crypto from 'crypto';
 import * as url from 'url';
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { wrapper } from 'axios-cookiejar-support';
 import { CookieJar } from 'tough-cookie';
 
@@ -39,19 +44,17 @@ class Request {
    *
    * Based on https://github.com/mhoc/axios-digest-auth
    *
+   * This will either return the response data (which should be XML)
+   * or throw an error
+   *
    * @param {string} requestUrl The URL to send the request to
    * @param {AxiosRequestConfig} config The Axios configuration
-   * @returns
+   * @returns {string}
    */
-  public async request(requestUrl: string, config: AxiosRequestConfig) {
+  public async request(requestUrl: string, config: AxiosRequestConfig): Promise<AxiosResponse> {
     // Reset the request count
     this.count = 0;
-    try {
-      const response = await this.doRequest(requestUrl, config);
-      console.log('response: ', response);
-    } catch (error) {
-      throw new Error(error);
-    }
+    return this.doRequest(requestUrl, config);
   }
 
   private async doRequest(requestUrl: string, config: AxiosRequestConfig) {
@@ -104,23 +107,5 @@ class Request {
     }
   }
 }
-
-// const request = async (url: string, config: RequestConfig) => {
-//   console.log('config: ', config);
-//   const jar = new CookieJar();
-//   const requestConfig = { ...{ jar, withCredentials: true }, ...config };
-//   console.log('requestConfig: ', requestConfig);
-//   // Create the axios instance with cookie jar support
-//   const retsClient = wrapper(axios.create(requestConfig));
-
-//   // Send and handle the request
-
-//   try {
-//     const response = await retsClient(url);
-//   } catch (error) {
-
-//   }
-//   console.log('response: ', response);
-// };
 
 export default Request;

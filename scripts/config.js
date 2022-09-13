@@ -10,6 +10,7 @@ const config = {
     external: [
         'axios',
         'axios-cookiejar-support',
+        'saxophone',
         'tough-cookie'
     ],
     format: 'esm',

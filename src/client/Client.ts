@@ -4,7 +4,11 @@
 =========================================================================== */
 
 import * as crypto from 'crypto';
-import { ClientHeaders, ClientOptions, ClientOptionsParam } from '../types/client-options';
+import { XMLParser } from 'fast-xml-parser';
+import { AxiosError } from 'axios';
+import {
+  Actions, ClientHeaders, ClientOptions, ClientOptionsParam,
+} from '../types/client';
 import { RequestConfig } from '../types/request';
 import Request from './Request';
 import { isObject, isStringWithValue } from '../lib/types';
@@ -31,6 +35,11 @@ class Client {
   private sessionId?: string;
 
   /**
+   * Holds the URL actions to get data from the RETS server
+   */
+  private actions?: Actions;
+
+  /**
    * Class constructor
    *
    * Options
@@ -45,11 +54,13 @@ class Client {
    */
   constructor(url: string, options: ClientOptionsParam) {
     this.url = url;
+    this.actions = {};
 
     // Initialize the options
     this.options = {
       authMethod: 'digest',
       headers: {
+        Accept: 'application/json, text/plain, application/xml, */*',
         'User-Agent': 'RETS node-client',
         'RETS-Version': 'RETS/1.7.2',
       },
@@ -170,15 +181,95 @@ class Client {
     return config;
   }
 
-  public async login() {
-    const request = new Request();
-    const result = request.request(this.url, this.getRequestConfig());
+  /**
+   * Handles logging into the RETS server
+   * @return {Promise}
+   */
+  public async login(): Promise<string|boolean> {
+    return new Promise((resolve, reject) => {
+      const request = new Request();
+      try {
+        request.request(this.url, this.getRequestConfig())
+          .then((response) => {
+            // console.log('response: ', response);
 
-    return true;
+            // Convert the XML to JSON
+            const parser = new XMLParser({
+              transformTagName: (tagName) => tagName.toLowerCase(),
+            });
+            const data = parser.parse(response.data);
+
+            // Object keys that hold the action URLs in the response data
+            const actionKeys = [
+              'getmetadata',
+              'getobject',
+              'login',
+              'logout',
+              'search',
+            ];
+
+            // Get the data from the response
+            if (typeof data.rets['rets-response'] !== 'undefined') {
+              const lines = data.rets['rets-response'].split('\n');
+
+              lines.forEach((line: string) => {
+                const [key, value] = line.split('=');
+                const keyL = key.toLocaleLowerCase();
+                if (actionKeys.includes(keyL)) {
+                  this.actions[keyL] = value;
+                }
+              });
+            }
+            resolve(true);
+          })
+          .catch((error) => {
+            // There was an error while making the request. It most likely returned a 4xx or 5xx response
+            // The error would be an axios error
+            const errorMessage = Client.handleRequestError(error, 'There was an unknown error while logging in');
+            reject(new Error(errorMessage));
+          });
+      } catch (error) {
+        // There was an error making the request
+        reject(error);
+      }
+    });
   }
 
   async logout() {
     return false;
+  }
+
+  /**
+   * Handles the error response from making a request
+   *
+   * @param {AxiosError} error The axios error object
+   * @param {string} defaultError The default error message to use if the response error message can't be determined
+   * @returns {string}
+   */
+  private static handleRequestError(error: AxiosError, defaultError: string): string {
+    let returnValue = defaultError;
+    if (error.response) {
+      if (typeof error.response.headers['content-type'] !== 'undefined') {
+        const contentType = error.response.headers['content-type'].toLowerCase();
+        if (contentType.includes('text/xml')) {
+          const parser = new XMLParser({
+            ignoreAttributes: false,
+            removeNSPrefix: true,
+            transformTagName: (tagName) => tagName.toLowerCase(),
+          });
+          const data = parser.parse(error.response.data as string);
+          if (typeof data.rets !== 'undefined' && typeof data.rets['@_ReplyText'] !== 'undefined') {
+            returnValue = data.rets['@_ReplyText'];
+            if (typeof data.rets['@_ReplyCode'] !== 'undefined') {
+              returnValue += ` (code ${data.rets['@_ReplyCode']})`;
+            }
+          }
+        }
+      }
+    } else if (typeof error.message !== 'undefined') {
+      returnValue = error.message;
+    }
+    return returnValue;
   }
 }
 
