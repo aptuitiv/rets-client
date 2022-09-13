@@ -1830,6 +1830,9 @@ var Client = class {
   }
 };
 var Client_default = Client;
+
+// src/index.ts
+var src_default = Client_default;
 export {
-  Client_default as Client
+  src_default as default
 };
