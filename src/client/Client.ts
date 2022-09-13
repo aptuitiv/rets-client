@@ -23,6 +23,11 @@ class Client {
   private url: string;
 
   /**
+   * The login url
+   */
+  private loginUrl: string;
+
+  /**
    * Holds the options for interfacing with the RETS API
    */
   private options: ClientOptions;
@@ -49,11 +54,17 @@ class Client {
    * - userAgegnt: The name of the user agent to use in the request. Used to set the User-Agent header.
    * - version: The RETS version to use. It's used to set the RETS-Version header.
    *
-   * @param {string} url The URL for the RETS API
-   * @param {ClientClientOptionsParamOptions} options The settings/options to pass to the Client object
+   * @param {string} loginUrl The URL for the RETS API
+   * @param {ClientOptionsParam} options The settings/options to pass to the Client object
    */
-  constructor(url: string, options: ClientOptionsParam) {
-    this.url = url;
+  constructor(loginUrl: string, options: ClientOptionsParam) {
+    // Get the root URL from the login URL
+    const url = new URL(loginUrl);
+    this.url = url.origin;
+
+    // Set the login URL
+    this.loginUrl = loginUrl;
+    // Set the default actions value
     this.actions = {};
 
     // Initialize the options
@@ -185,14 +196,12 @@ class Client {
    * Handles logging into the RETS server
    * @return {Promise}
    */
-  public async login(): Promise<string|boolean> {
+  public async login(): Promise<boolean> {
     return new Promise((resolve, reject) => {
       const request = new Request();
       try {
-        request.request(this.url, this.getRequestConfig())
+        request.request(this.loginUrl, this.getRequestConfig())
           .then((response) => {
-            // console.log('response: ', response);
-
             // Convert the XML to JSON
             const parser = new XMLParser({
               transformTagName: (tagName) => tagName.toLowerCase(),
@@ -223,8 +232,7 @@ class Client {
             resolve(true);
           })
           .catch((error) => {
-            // There was an error while making the request. It most likely returned a 4xx or 5xx response
-            // The error would be an axios error
+            // There was an error while making the request. The error would be an axios error
             const errorMessage = Client.handleRequestError(error, 'There was an unknown error while logging in');
             reject(new Error(errorMessage));
           });
@@ -235,8 +243,33 @@ class Client {
     });
   }
 
-  async logout() {
-    return false;
+  /**
+   * Handles logging the session out
+   *
+   * @returns {Promise}
+   */
+  async logout(): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      if (typeof this.actions.logout !== 'undefined') {
+        const request = new Request();
+        try {
+          request.request(this.url + this.actions.logout, this.getRequestConfig())
+            .then(() => {
+              resolve(true);
+            })
+            .catch((error) => {
+              // There was an error while making the request. The error would be an axios error
+              const errorMessage = Client.handleRequestError(error, 'There was an unknown error while logging out');
+              reject(new Error(errorMessage));
+            });
+        } catch (error) {
+          // There was an error making the request
+          reject(error);
+        }
+      } else {
+        reject(new Error('The logout action is not defined. Make sure that you log in first.'));
+      }
+    });
   }
 
   /**

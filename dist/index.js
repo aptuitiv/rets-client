@@ -1664,8 +1664,10 @@ var isStringWithValue = (thing) => isString(thing) && thing.length > 0;
 
 // src/client/Client.ts
 var Client = class {
-  constructor(url2, options) {
-    this.url = url2;
+  constructor(loginUrl, options) {
+    const url2 = new URL(loginUrl);
+    this.url = url2.origin;
+    this.loginUrl = loginUrl;
     this.actions = {};
     this.options = {
       authMethod: "digest",
@@ -1747,7 +1749,7 @@ var Client = class {
       return new Promise((resolve, reject) => {
         const request = new Request_default();
         try {
-          request.request(this.url, this.getRequestConfig()).then((response) => {
+          request.request(this.loginUrl, this.getRequestConfig()).then((response) => {
             const parser = new import_fast_xml_parser.XMLParser({
               transformTagName: (tagName) => tagName.toLowerCase()
             });
@@ -1782,7 +1784,23 @@ var Client = class {
   }
   logout() {
     return __async(this, null, function* () {
-      return false;
+      return new Promise((resolve, reject) => {
+        if (typeof this.actions.logout !== "undefined") {
+          const request = new Request_default();
+          try {
+            request.request(this.url + this.actions.logout, this.getRequestConfig()).then(() => {
+              resolve(true);
+            }).catch((error) => {
+              const errorMessage = Client.handleRequestError(error, "There was an unknown error while logging out");
+              reject(new Error(errorMessage));
+            });
+          } catch (error) {
+            reject(error);
+          }
+        } else {
+          reject(new Error("The logout action is not defined. Make sure that you log in first."));
+        }
+      });
     });
   }
   static handleRequestError(error, defaultError) {
