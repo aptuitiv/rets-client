@@ -15,6 +15,12 @@ type RequestAuth = {
 // Request object configuration
 export type RequestConfig = {
     auth?: RequestAuth,
+    data?: {
+        [key: string] : string|number
+    }
     headers: RequestHeaders,
     method: string
+    params?: {
+        [key: string] : string|number
+    }
 }
