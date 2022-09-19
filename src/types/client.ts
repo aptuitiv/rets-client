@@ -35,3 +35,28 @@ export type ClientOptionsParam = {
 export type Actions = {
     [key: string]: string
 }
+
+// The different supported formats for the id value when getting objects
+export type ObjectIds = 
+    | string
+    | number
+    | string[]
+    | number[]
+    | {
+        [key: string|number]: string|number|string[]|number[]
+    }
+
+export type GetObjectOptions = {
+    mime?: string
+    location: string|number
+}
+
+export type GetObjectItem = {
+    contentType: string
+    data: any
+    headers: {
+        [key:string]: any
+    }
+}
+
+export type GetObjectResponse = GetObjectItem[];

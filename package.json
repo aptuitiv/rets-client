@@ -27,7 +27,9 @@
   "homepage": "https://github.com/aptuitiv/rets-client3#readme",
   "devDependencies": {
     "@types/chai": "^4.3.3",
+    "@types/dicer": "^0.2.2",
     "@types/mocha": "^9.1.1",
+    "@types/stream-buffers": "^3.0.4",
     "@types/tough-cookie": "^4.0.2",
     "@typescript-eslint/eslint-plugin": "^5.36.2",
     "@typescript-eslint/parser": "^5.36.2",
@@ -45,8 +47,9 @@
   "dependencies": {
     "axios": "^0.27.2",
     "axios-cookiejar-support": "^4.0.3",
+    "dicer": "^0.3.1",
     "fast-xml-parser": "^4.0.9",
-    "saxophone": "^0.8.0",
+    "stream-buffers": "^3.0.2",
     "tough-cookie": "^4.1.2"
   }
 }

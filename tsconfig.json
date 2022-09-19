@@ -1,6 +1,7 @@
 {
     "include": ["src/**/*"],
     "compilerOptions": {
+        "allowSyntheticDefaultImports": true,
         "module": "esnext",
         "moduleResolution": "node",
         "target": "es6",
