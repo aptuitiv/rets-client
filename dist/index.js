@@ -21,9 +21,175 @@ var __async = (__this, __arguments, generator) => {
 
 // src/client/Client.ts
 import * as crypto2 from "crypto";
-import { XMLParser } from "fast-xml-parser";
+import { XMLParser as XMLParser3 } from "fast-xml-parser";
+
+// src/client/GetObjectHelper.ts
 import Dicer from "dicer";
 import StreamBuffers from "stream-buffers";
+import { XMLParser as XMLParser2 } from "fast-xml-parser";
+
+// src/client/requestError.ts
+import { XMLParser } from "fast-xml-parser";
+var handleRequestError = (error, defaultError) => {
+  let returnValue = defaultError;
+  if (error.response) {
+    if (typeof error.response.headers["content-type"] !== "undefined") {
+      const contentType = error.response.headers["content-type"].toLowerCase();
+      if (contentType.includes("text/xml")) {
+        const parser = new XMLParser({
+          ignoreAttributes: false,
+          removeNSPrefix: true,
+          transformTagName: (tagName) => tagName.toLowerCase()
+        });
+        const data = parser.parse(error.response.data);
+        if (typeof data.rets !== "undefined" && typeof data.rets["@_ReplyText"] !== "undefined") {
+          returnValue = data.rets["@_ReplyText"];
+          if (typeof data.rets["@_ReplyCode"] !== "undefined") {
+            returnValue += ` (code ${data.rets["@_ReplyCode"]})`;
+          }
+        }
+      }
+    }
+  } else if (typeof error.message !== "undefined") {
+    returnValue = error.message;
+  }
+  return returnValue;
+};
+var requestError_default = handleRequestError;
+
+// src/client/GetObjectHelper.ts
+var GetObjectHelper = {
+  setUpIds: (ids) => {
+    let idString = "";
+    if (typeof ids === "string") {
+      idString = ids;
+    } else if (Array.isArray(ids)) {
+      idString = ids.join(",");
+    } else if (typeof ids === "object") {
+      const idArray = [];
+      Object.keys(ids).forEach((resourceId) => {
+        let objectId = ids[resourceId];
+        if (Array.isArray(objectId)) {
+          objectId = objectId.join(":");
+        }
+        if (objectId) {
+          idArray.push(`${resourceId}:${objectId}`);
+        } else {
+          idArray.push(resourceId);
+        }
+      });
+      idString = idArray.join(",");
+    }
+    return idString;
+  },
+  getLocation: (options) => {
+    let location = 0;
+    if (typeof options === "object") {
+      if (typeof options.location === "string") {
+        location = parseInt(options.location, 10);
+      } else if (typeof options.location === "number") {
+        location = options.location;
+      }
+    }
+    if (location !== 0 && location !== 1) {
+      location = 0;
+    }
+    return location;
+  },
+  getAcceptHeader: (options) => {
+    let returnValue = "*/*";
+    if (typeof options === "object") {
+      if (typeof options.mime === "string") {
+        returnValue = options.mime;
+      }
+    }
+    return returnValue;
+  },
+  processMultiPart: (response, headerContentType) => new Promise((resolve) => {
+    const RE_BOUNDARY = /boundary=(?:(?:"([^"]+)")|(?:[^\s]+))/i;
+    const m = RE_BOUNDARY.exec(headerContentType);
+    const objects = [];
+    const d = new Dicer({ boundary: m[1] || m[2] });
+    d.on("part", (part) => {
+      const object = {
+        contentType: "unknown",
+        data: "",
+        headers: {}
+      };
+      const writableStreamBuffer = new StreamBuffers.WritableStreamBuffer({
+        initialSize: 100 * 1024,
+        incrementAmount: 10 * 1024
+      });
+      part.on("header", (header) => {
+        Object.keys(header).forEach((headerKey) => {
+          let headerValue = header[headerKey];
+          if (Array.isArray(headerValue)) {
+            if (headerValue.length === 1) {
+              headerValue = headerValue.shift();
+            }
+          }
+          if (headerKey === "content-type") {
+            object.contentType = headerValue;
+          }
+          object.headers[headerKey] = headerValue;
+        });
+      });
+      part.on("data", (data) => {
+        writableStreamBuffer.write(data);
+      });
+      part.on("end", () => {
+        object.data = writableStreamBuffer.getContents();
+        objects.push(object);
+      });
+    });
+    d.on("finish", () => {
+      resolve(objects);
+    });
+    response.data.pipe(d);
+  }),
+  processXmlResponse: (response) => new Promise((resolve, reject) => {
+    const writableStreamBuffer = new StreamBuffers.WritableStreamBuffer({
+      initialSize: 10 * 1024,
+      incrementAmount: 10 * 1024
+    });
+    response.data.pipe(writableStreamBuffer);
+    response.data.on("end", () => {
+      const parser = new XMLParser2({
+        ignoreAttributes: false,
+        transformTagName: (tagName) => tagName.toLowerCase()
+      });
+      const xml = writableStreamBuffer.getContentsAsString("utf-8");
+      if (typeof xml === "string") {
+        resolve([{
+          contentType: "text/xml",
+          data: parser.parse(xml),
+          headers: response.headers
+        }]);
+      } else {
+        reject(new Error("There was an error processing the XML response"));
+      }
+    });
+  }),
+  processMediaResponse: (response, headerContentType) => new Promise((resolve, reject) => {
+    const writableStreamBuffer = new StreamBuffers.WritableStreamBuffer({
+      initialSize: 100 * 1024,
+      incrementAmount: 10 * 1024
+    });
+    response.data.pipe(writableStreamBuffer);
+    response.data.on("error", (error) => {
+      const errorMessage = requestError_default(error, "There was an unknown error while processing the object stream");
+      reject(new Error(errorMessage));
+    });
+    response.data.on("end", () => {
+      resolve([{
+        contentType: headerContentType,
+        data: writableStreamBuffer.getContents(),
+        headers: response.headers
+      }]);
+    });
+  })
+};
+var GetObjectHelper_default = GetObjectHelper;
 
 // src/client/Request.ts
 import * as crypto from "crypto";
@@ -176,7 +342,7 @@ var Client = class {
         const request = new Request_default();
         try {
           request.request(this.loginUrl, this.getRequestConfig()).then((response) => {
-            const parser = new XMLParser({
+            const parser = new XMLParser3({
               transformTagName: (tagName) => tagName.toLowerCase()
             });
             const data = parser.parse(response.data);
@@ -199,7 +365,7 @@ var Client = class {
             }
             resolve(true);
           }).catch((error) => {
-            const errorMessage = Client.handleRequestError(error, "There was an unknown error while logging in");
+            const errorMessage = requestError_default(error, "There was an unknown error while logging in");
             reject(new Error(errorMessage));
           });
         } catch (error) {
@@ -235,143 +401,46 @@ var Client = class {
       return new Promise((resolve, reject) => {
         if (typeof this.actions.getobject !== "undefined") {
           try {
-            let idString = "";
-            if (typeof ids === "string") {
-              idString = ids;
-            } else if (Array.isArray(ids)) {
-              idString = ids.join(",");
-            } else if (typeof ids === "object") {
-              const idArray = [];
-              Object.keys(ids).forEach((resourceId) => {
-                let objectId = ids[resourceId];
-                if (Array.isArray(objectId)) {
-                  objectId = objectId.join(":");
-                }
-                if (objectId) {
-                  idArray.push(`${resourceId}:${objectId}`);
-                } else {
-                  idArray.push(resourceId);
-                }
-              });
-              idString = idArray.join(",");
-            }
             const requestConfig = this.getRequestConfig();
-            let location = 0;
-            let mime = "*/*";
-            if (typeof options === "object") {
-              if (typeof options.mime === "string") {
-                mime = options.mime;
-              }
-              if (typeof options.location === "string") {
-                location = parseInt(options.location, 10);
-              } else if (typeof options.location === "number") {
-                location = options.location;
-              }
-            }
-            if (location !== 0 && location !== 1) {
-              location = 0;
-            }
             const params = {
               Resource: resourceType,
               Type: type,
-              ID: idString,
-              Location: location
+              ID: GetObjectHelper_default.setUpIds(ids),
+              Location: GetObjectHelper_default.getLocation(options)
             };
             if (requestConfig.method === "GET") {
               requestConfig.params = params;
             } else {
               requestConfig.data = params;
             }
-            requestConfig.headers.Accept = mime || "*/*";
+            requestConfig.headers.Accept = GetObjectHelper_default.getAcceptHeader(options);
             requestConfig.responseType = "stream";
             const request = new Request_default();
             request.request(this.url + this.actions.getobject, requestConfig).then((response) => __async(this, null, function* () {
               if (typeof response.headers["content-type"] !== "undefined") {
                 const headerContentType = response.headers["content-type"];
                 if (headerContentType.includes("multipart")) {
-                  const RE_BOUNDARY = /boundary=(?:(?:"([^"]+)")|(?:[^\s]+))/i;
-                  const m = RE_BOUNDARY.exec(headerContentType);
-                  const objects = [];
-                  const d = new Dicer({ boundary: m[1] || m[2] });
-                  d.on("part", (part) => {
-                    const object = {
-                      contentType: "unknown",
-                      data: "",
-                      headers: {}
-                    };
-                    const writableStreamBuffer = new StreamBuffers.WritableStreamBuffer({
-                      initialSize: 100 * 1024,
-                      incrementAmount: 10 * 1024
-                    });
-                    part.on("header", (header) => {
-                      Object.keys(header).forEach((headerKey) => {
-                        let headerValue = header[headerKey];
-                        if (Array.isArray(headerValue)) {
-                          if (headerValue.length === 1) {
-                            headerValue = headerValue.shift();
-                          }
-                        }
-                        if (headerKey === "content-type") {
-                          object.contentType = headerValue;
-                        }
-                        object.headers[headerKey] = headerValue;
-                      });
-                    });
-                    part.on("data", (data) => {
-                      writableStreamBuffer.write(data);
-                    });
-                    part.on("end", () => {
-                      object.data = writableStreamBuffer.getContents();
-                      objects.push(object);
-                    });
+                  GetObjectHelper_default.processMultiPart(response, headerContentType).then((result) => {
+                    resolve(result);
+                  }).catch((error) => {
+                    reject(new Error(error));
                   });
-                  d.on("finish", () => {
-                    resolve(objects);
-                  });
-                  response.data.pipe(d);
                 } else if (headerContentType.includes("text/xml")) {
-                  const writableStreamBuffer = new StreamBuffers.WritableStreamBuffer({
-                    initialSize: 10 * 1024,
-                    incrementAmount: 10 * 1024
-                  });
-                  response.data.pipe(writableStreamBuffer);
-                  response.data.on("end", () => {
-                    const parser = new XMLParser({
-                      ignoreAttributes: false,
-                      transformTagName: (tagName) => tagName.toLowerCase()
-                    });
-                    const xml = writableStreamBuffer.getContentsAsString("utf-8");
-                    if (typeof xml === "string") {
-                      resolve([{
-                        contentType: "text/xml",
-                        data: parser.parse(xml),
-                        headers: response.headers
-                      }]);
-                    } else {
-                      reject(new Error("There was an error processing the XML response"));
-                    }
+                  GetObjectHelper_default.processXmlResponse(response).then((result) => {
+                    resolve(result);
+                  }).catch((error) => {
+                    reject(new Error(error));
                   });
                 } else {
-                  const writableStreamBuffer = new StreamBuffers.WritableStreamBuffer({
-                    initialSize: 100 * 1024,
-                    incrementAmount: 10 * 1024
-                  });
-                  response.data.pipe(writableStreamBuffer);
-                  response.data.on("error", (error) => {
-                    const errorMessage = Client.handleRequestError(error, "There was an unknown error while processing the object stream");
-                    reject(new Error(errorMessage));
-                  });
-                  response.data.on("end", () => {
-                    resolve([{
-                      contentType: headerContentType,
-                      data: writableStreamBuffer.getContents(),
-                      headers: response.headers
-                    }]);
+                  GetObjectHelper_default.processMediaResponse(response, headerContentType).then((result) => {
+                    resolve(result);
+                  }).catch((error) => {
+                    reject(new Error(error));
                   });
                 }
               }
             })).catch((error) => {
-              const errorMessage = Client.handleRequestError(error, "There was an unknown error while getting the objects");
+              const errorMessage = requestError_default(error, "There was an unknown error while getting the objects");
               reject(new Error(errorMessage));
             });
           } catch (error) {
@@ -392,7 +461,7 @@ var Client = class {
             request.request(this.url + this.actions.logout, this.getRequestConfig()).then(() => {
               resolve(true);
             }).catch((error) => {
-              const errorMessage = Client.handleRequestError(error, "There was an unknown error while logging out");
+              const errorMessage = requestError_default(error, "There was an unknown error while logging out");
               reject(new Error(errorMessage));
             });
           } catch (error) {
@@ -403,31 +472,6 @@ var Client = class {
         }
       });
     });
-  }
-  static handleRequestError(error, defaultError) {
-    let returnValue = defaultError;
-    if (error.response) {
-      if (typeof error.response.headers["content-type"] !== "undefined") {
-        const contentType = error.response.headers["content-type"].toLowerCase();
-        if (contentType.includes("text/xml")) {
-          const parser = new XMLParser({
-            ignoreAttributes: false,
-            removeNSPrefix: true,
-            transformTagName: (tagName) => tagName.toLowerCase()
-          });
-          const data = parser.parse(error.response.data);
-          if (typeof data.rets !== "undefined" && typeof data.rets["@_ReplyText"] !== "undefined") {
-            returnValue = data.rets["@_ReplyText"];
-            if (typeof data.rets["@_ReplyCode"] !== "undefined") {
-              returnValue += ` (code ${data.rets["@_ReplyCode"]})`;
-            }
-          }
-        }
-      }
-    } else if (typeof error.message !== "undefined") {
-      returnValue = error.message;
-    }
-    return returnValue;
   }
 };
 var Client_default = Client;

@@ -5,13 +5,13 @@
 
 import * as crypto from 'crypto';
 import { XMLParser } from 'fast-xml-parser';
-import { AxiosError, AxiosRequestConfig } from 'axios';
-import Dicer from 'dicer';
-import StreamBuffers from 'stream-buffers';
+import { AxiosRequestConfig } from 'axios';
 
 import {
   Actions, ClientHeaders, ClientOptions, ClientOptionsParam, ObjectIds, GetObjectOptions, GetObjectItem, GetObjectResponse,
 } from '../types/client';
+import GetObjectHelper from './GetObjectHelper';
+import handleRequestError from './requestError';
 import Request from './Request';
 import { isObject, isStringWithValue } from '../lib/types';
 
@@ -235,7 +235,7 @@ class Client {
           })
           .catch((error) => {
             // There was an error while making the request. The error would be an axios error
-            const errorMessage = Client.handleRequestError(error, 'There was an unknown error while logging in');
+            const errorMessage = handleRequestError(error, 'There was an unknown error while logging in');
             reject(new Error(errorMessage));
           });
       } catch (error) {
@@ -301,7 +301,7 @@ class Client {
    *
    * @param {string} resourceType The resource type that the object is for. "Property" is the usual value.
    * @param {string} type The type of object to get
-   * @param {string|number|object|array} ids The ids information
+   * @param {string|number|object|Array} ids The ids information
    * @param {object} options Options for the request
    * @returns {Promise}
    */
@@ -309,64 +309,14 @@ class Client {
     return new Promise((resolve, reject) => {
       if (typeof this.actions.getobject !== 'undefined') {
         try {
-          // Format the ID value
-          let idString = '';
-          if (typeof ids === 'string') {
-            // Getting a single object based on a single id
-            idString = ids;
-          } else if (Array.isArray(ids)) {
-            // Getting one or more objects based on their ids
-            idString = ids.join(',');
-          } else if (typeof ids === 'object') {
-            // Getting one or more objects based on their id and object number.
-            // ids is an object where the key is the resource id and the value is the values to get (i.e. the image numbers to get)
-            // Example getting photos
-            // ids = {
-            //    111111: 3 // get photo 3 for resource id 111111
-            //    222222: [1,2,3] // get photos 1, 2, and 3 for resource id 222222
-            //    333333: '*' // Get all photos for resource id 333333
-            //    444444: '0' // Get the 'preferred' photo for resource id 444444
-            //    555555: '' // Get just the resource id object
-            // }
-            const idArray = [];
-            Object.keys(ids).forEach((resourceId) => {
-              let objectId = ids[resourceId];
-              if (Array.isArray(objectId)) {
-                objectId = objectId.join(':');
-              }
-              if (objectId) {
-                idArray.push(`${resourceId}:${objectId}`);
-              } else {
-                idArray.push(resourceId);
-              }
-            });
-            idString = idArray.join(',');
-          }
           const requestConfig = this.getRequestConfig();
-
-          // Get the correct location value
-          let location = 0;
-          let mime = '*/*';
-          if (typeof options === 'object') {
-            if (typeof options.mime === 'string') {
-              mime = options.mime;
-            }
-            if (typeof options.location === 'string') {
-              location = parseInt(options.location, 10);
-            } else if (typeof options.location === 'number') {
-              location = options.location;
-            }
-          }
-          if (location !== 0 && location !== 1) {
-            location = 0;
-          }
 
           // Set the request parameters
           const params = {
             Resource: resourceType,
             Type: type,
-            ID: idString,
-            Location: location,
+            ID: GetObjectHelper.setUpIds(ids),
+            Location: GetObjectHelper.getLocation(options),
           };
           if (requestConfig.method === 'GET') {
             // GET request
@@ -377,7 +327,7 @@ class Client {
           }
 
           // Set the request headers
-          requestConfig.headers.Accept = mime || '*/*';
+          requestConfig.headers.Accept = GetObjectHelper.getAcceptHeader(options);
 
           requestConfig.responseType = 'stream';
 
@@ -388,123 +338,37 @@ class Client {
               if (typeof response.headers['content-type'] !== 'undefined') {
                 const headerContentType = response.headers['content-type'];
                 if (headerContentType.includes('multipart')) {
-                  // Regex to get the multipart boundary.
-                  // Based on https://www.npmjs.com/package/dicer
-                  const RE_BOUNDARY = /boundary=(?:(?:"([^"]+)")|(?:[^\s]+))/i;
-                  const m = RE_BOUNDARY.exec(headerContentType);
-
-                  // The array of objects to return
-                  const objects: GetObjectResponse = [];
-
-                  // Set up the Dicer object to parse the multipart response
-                  const d = new Dicer({ boundary: m[1] || m[2] });
-
-                  // For each part, get the headers and data
-                  d.on('part', (part) => {
-                    // Set up the individual object
-                    const object: GetObjectItem = {
-                      contentType: 'unknown',
-                      data: '',
-                      headers: {},
-                    };
-                    // Write to a Buffer to collect all of the stream data into one Buffer
-                    const writableStreamBuffer = new StreamBuffers.WritableStreamBuffer({
-                      initialSize: 100 * 1024,
-                      incrementAmount: 10 * 1024,
+                  GetObjectHelper.processMultiPart(response, headerContentType)
+                    .then((result) => {
+                      resolve(result);
+                    })
+                    .catch((error) => {
+                      reject(new Error(error));
                     });
-
-                    // "header" called when all headers are found
-                    part.on('header', (header) => {
-                      // "header" is an object containing all of the headers
-                      // Each header value is an array
-                      Object.keys(header).forEach((headerKey) => {
-                        let headerValue = header[headerKey];
-                        if (Array.isArray(headerValue)) {
-                          if (headerValue.length === 1) {
-                            headerValue = headerValue.shift();
-                          }
-                        }
-                        if (headerKey === 'content-type') {
-                          object.contentType = headerValue;
-                        }
-                        object.headers[headerKey] = headerValue;
-                      });
-                    });
-
-                    // Add the data to to the buffer
-                    part.on('data', (data) => {
-                      writableStreamBuffer.write(data);
-                    });
-
-                    // Finish this object and add to the array of objects
-                    part.on('end', () => {
-                      object.data = writableStreamBuffer.getContents();
-                      objects.push(object);
-                    });
-                  });
-
-                  // All done parsing the multi-part
-                  d.on('finish', () => {
-                    resolve(objects);
-                  });
-                  response.data.pipe(d);
                 } else if (headerContentType.includes('text/xml')) {
                   // Process the response as XML
-                  // Convert the XML to JSON
-                  const writableStreamBuffer = new StreamBuffers.WritableStreamBuffer({
-                    initialSize: 10 * 1024,
-                    incrementAmount: 10 * 1024,
-                  });
-                  response.data.pipe(writableStreamBuffer);
-
-                  response.data.on('end', () => {
-                    const parser = new XMLParser({
-                      ignoreAttributes: false,
-                      transformTagName: (tagName) => tagName.toLowerCase(),
+                  GetObjectHelper.processXmlResponse(response)
+                    .then((result) => {
+                      resolve(result);
+                    })
+                    .catch((error) => {
+                      reject(new Error(error));
                     });
-                    const xml = writableStreamBuffer.getContentsAsString('utf-8');
-                    if (typeof xml === 'string') {
-                      resolve([{
-                        contentType: 'text/xml',
-                        data: parser.parse(xml),
-                        headers: response.headers,
-                      }]);
-                    } else {
-                      reject(new Error('There was an error processing the XML response'));
-                    }
-                  });
                 } else {
                   // This is likely an image.
-                  // Write to a Buffer to collect all of the stream data into one Buffer
-                  const writableStreamBuffer = new StreamBuffers.WritableStreamBuffer({
-                    initialSize: 100 * 1024,
-                    incrementAmount: 10 * 1024,
-                  });
-                  response.data.pipe(writableStreamBuffer);
-
-                  // Handle a stream error
-                  response.data.on('error', (error) => {
-                    const errorMessage = Client.handleRequestError(error, 'There was an unknown error while processing the object stream');
-                    reject(new Error(errorMessage));
-                  });
-
-                  // Handle when the stream is finished
-                  response.data.on('end', () => {
-                    resolve([{
-                      contentType: headerContentType,
-                      // Data is a Buffer object
-                      // Use "base64" when outputting.
-                      // data.toString('base64')
-                      data: writableStreamBuffer.getContents(),
-                      headers: response.headers,
-                    }]);
-                  });
+                  GetObjectHelper.processMediaResponse(response, headerContentType)
+                    .then((result) => {
+                      resolve(result);
+                    })
+                    .catch((error) => {
+                      reject(new Error(error));
+                    });
                 }
               }
             })
             .catch((error) => {
               // There was an error while making the request. The error would be an axios error
-              const errorMessage = Client.handleRequestError(error, 'There was an unknown error while getting the objects');
+              const errorMessage = handleRequestError(error, 'There was an unknown error while getting the objects');
               reject(new Error(errorMessage));
             });
         } catch (error) {
@@ -533,7 +397,7 @@ class Client {
             })
             .catch((error) => {
               // There was an error while making the request. The error would be an axios error
-              const errorMessage = Client.handleRequestError(error, 'There was an unknown error while logging out');
+              const errorMessage = handleRequestError(error, 'There was an unknown error while logging out');
               reject(new Error(errorMessage));
             });
         } catch (error) {
@@ -544,39 +408,6 @@ class Client {
         reject(new Error('The logout action is not defined. Make sure that you log in first.'));
       }
     });
-  }
-
-  /**
-   * Handles the error response from making a request
-   *
-   * @param {AxiosError} error The axios error object
-   * @param {string} defaultError The default error message to use if the response error message can't be determined
-   * @returns {string}
-   */
-  private static handleRequestError(error: AxiosError, defaultError: string): string {
-    let returnValue = defaultError;
-    if (error.response) {
-      if (typeof error.response.headers['content-type'] !== 'undefined') {
-        const contentType = error.response.headers['content-type'].toLowerCase();
-        if (contentType.includes('text/xml')) {
-          const parser = new XMLParser({
-            ignoreAttributes: false,
-            removeNSPrefix: true,
-            transformTagName: (tagName) => tagName.toLowerCase(),
-          });
-          const data = parser.parse(error.response.data as string);
-          if (typeof data.rets !== 'undefined' && typeof data.rets['@_ReplyText'] !== 'undefined') {
-            returnValue = data.rets['@_ReplyText'];
-            if (typeof data.rets['@_ReplyCode'] !== 'undefined') {
-              returnValue += ` (code ${data.rets['@_ReplyCode']})`;
-            }
-          }
-        }
-      }
-    } else if (typeof error.message !== 'undefined') {
-      returnValue = error.message;
-    }
-    return returnValue;
   }
 }
 
