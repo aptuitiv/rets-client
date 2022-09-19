@@ -273,11 +273,6 @@ var Client = class {
       const keys = Object.keys(options);
       keys.forEach((key) => {
         switch (key) {
-          case "authMethod":
-            if (["basic", "digest", "none"].includes(options.authMethod)) {
-              this.options.authMethod = options.authMethod;
-            }
-            break;
           case "headers":
             this.setHeaders(options[key]);
             break;

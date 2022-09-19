@@ -84,11 +84,6 @@ class Client {
       const keys = Object.keys(options);
       keys.forEach((key) => {
         switch (key) {
-          case 'authMethod':
-            if (['basic', 'digest', 'none'].includes(options.authMethod)) {
-              this.options.authMethod = options.authMethod;
-            }
-            break;
           case 'headers':
             this.setHeaders(options[key]);
             break;
@@ -187,7 +182,7 @@ class Client {
       headers: this.options.headers,
       method: requestMethod,
     };
-    // Set up the  basic authentication
+    // Set up the basic authentication
     if (typeof this.options.auth !== 'undefined') {
       config.auth = this.options.auth;
     }
