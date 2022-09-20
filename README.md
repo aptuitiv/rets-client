@@ -1,5 +1,7 @@
 # RETS client for NodeJS
 
+`rets-client` provides an interface to log in and retrieve data from a RETS server.
+
 Inspired by:
 
 - [aeq/rets-client](https://github.com/aeq/rets-client)
@@ -7,6 +9,11 @@ Inspired by:
 - [zacronos/rets-client](https://github.com/zacronos/rets-client)
 
 Spec is based on <https://www.nar.realtor/retsorg.nsf/retsproto1.7d6.pdf> and <https://www.reso.org/rets-specifications/>.
+
+## TODO
+
+- get metadata
+- search
 
 ## Initialize the RETS client object
 
@@ -114,7 +121,8 @@ The `getObject` method will return a promise. The resolved value is an object co
 ```javascript
 {
     contentType: string,
-    data: Buffer or string
+    data: Buffer or string,
+    headers: object
 }
 ```
 
@@ -122,6 +130,9 @@ The `getObject` method will return a promise. The resolved value is an object co
 |---|---|---|
 | contentType | string | The value of the `Content-Type` header. |
 | data | Buffer or object | If the object is a media type like an image then the value is a Buffer. If the returned object is XML then this will be a JSON representation of that XML. |
+| headers | object | An object containing all of the headers in the response. The header names are normalized to lowercase. The key is the header name. The value is the header value. |
+
+If the object has already been retrieved recently the RETS server may return an XML response indicating that nothing has changed since the last request.
 
 #### getObject() example
 
@@ -236,7 +247,8 @@ The `getObjects` method will return a promise. The resolved value is an array co
 [
     {
         contentType: string,
-        data: Buffer or string
+        data: Buffer or string,
+        headers: object
     }
 ]
 ```
@@ -245,6 +257,9 @@ The `getObjects` method will return a promise. The resolved value is an array co
 |---|---|---|
 | contentType | string | The value of the `Content-Type` header. |
 | data | Buffer or object | If the object is a media type like an image then the value is a Buffer. If the returned object is XML then this will be a JSON representation of that XML. |
+| headers | object | An object containing all of the headers in the response. The header names are normalized to lowercase. The key is the header name. The value is the header value. |
+
+If the object has already been retrieved recently the RETS server may return an XML response indicating that nothing has changed since the last request.
 
 #### getObjects() example
 
@@ -288,16 +303,36 @@ Images are a specific type of object that you can get. There are two helper func
 
 ### Get a single image
 
-****.getImage(resourceType: string, imageType: string, resourceId: string|number, imageNumber: string|number): Promise****
+`.getImage(resourceType: string, imageType: string, resourceId: string|number, imageNumber: string|number): Promise<object>`
 
 If you are only going to get a single image then it is recommended to use `getImage`. This will return an object with the image data.
 
-The image data includes the following information:
+#### getImage() Parameters
 
-| Value | Type | Description |
+| Name | Type | Description |
 |---|---|---|
-| contentType | string | The "Content-Type" header response |
-| data | Buffer | The image data |
+| resourceType | string | The resource type. For example, "Property" |
+| imageType | string | The image type. Example: "Photo" or "Thumbnail" |
+| resourceId | string or number | The ids of the objects to retrieve combined with the resource id. |
+| imageNumber | string or number | The identifier for the image. |
+
+#### getImage() return value
+
+The `getImage` method will return a promise. The resolved value is an object containing the retrieved image.
+
+```javascript
+{
+    contentType: string,
+    data: Buffer or string,
+    headers: object
+}
+```
+
+| Name | Type | Description |
+|---|---|---|
+| contentType | string | The value of the `Content-Type` header. |
+| data | Buffer or object | If the object is a media type like an image then the value is a Buffer. If the returned object is XML then this will be a JSON representation of that XML. |
+| headers | object | An object containing all of the headers in the response. The header names are normalized to lowercase. The key is the header name. The value is the header value. |
 
 If the image has already been retrieved recently the RETS server may return an XML response indicating that nothing has changed since the last request.
 
@@ -331,40 +366,49 @@ try {
 
 ### Get multiple images
 
-****.getImages(resourceType: string, imageType: string, resourceId: string|number, imageNumber: string|number|string[]|number[]): Promise****
+`.getImages(resourceType: string, imageType: string, resourceId: string|number, imageNumber: string|number|string[]|number[]): Promise<object[]>`
 
-The `getImages` method lets you get one or more images. The `imageNumber` parameter could be in the following format:
+The `getImages` method lets you get one or more images.
 
-- *string*: '3'
-- *number': 3
-- *array': ['3', '4'] or [3, 4, 5], or [3, '10', 11]
+#### getImages() Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| resourceType | string | The resource type. For example, "Property" |
+| type | string | The object type. Example: "Photo" or "Thumbnail" |
+| resourceId | string or number | The ids of the objects to retrieve combined with the resource id. |
+| imageNumber | string, number, array | The identifiers of the images to retrieve. |
+
+The `imageNumber` parameter could be in the following format:
+
+- *string*: `'3'`
+- *number': `3`
+- *array': `['3', '4']` or `[3, 4, 5]`, or `[3, '10', 11]`
 - `*` to indicate all images for the resource.
 
-The returned data will be an array of image data.
+#### getImages() return value
+
+The `getImages` method will return a promise. The resolved value is an array containing the data for one or more retrieved objects.
 
 ```javascript
 [
     {
-        contentType: 'image/jpg',
-        data: DATA,
-        headers: {}
-    },
-    {
-        contentType: 'image/jpg',
-        data: DATA,
-        headers: {}
+        contentType: string,
+        data: Buffer or string,
+        headers: object
     }
 ]
 ```
 
-The image data includes the following information:
-
-| Value | Type | Description |
+| Name | Type | Description |
 |---|---|---|
-| contentType | string | The "Content-Type" header response |
-| data | Buffer | The image data |
+| contentType | string | The value of the `Content-Type` header. |
+| data | Buffer or object | If the object is a media type like an image then the value is a Buffer. If the returned object is XML then this will be a JSON representation of that XML. |
+| headers | object | An object containing all of the headers in the response. The header names are normalized to lowercase. The key is the header name. The value is the header value. |
 
 If the image has already been retrieved recently the RETS server may return an XML response indicating that nothing has changed since the last request.
+
+#### getImages() example
 
 ```javascript
 import fs from 'fs';
