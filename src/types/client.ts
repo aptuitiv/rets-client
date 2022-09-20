@@ -39,9 +39,7 @@ export type Actions = {
 // The different supported formats for the id value when getting objects
 export type ObjectIds = 
     | string
-    | number
     | string[]
-    | number[]
     | {
         [key: string|number]: string|number|string[]|number[]
     }

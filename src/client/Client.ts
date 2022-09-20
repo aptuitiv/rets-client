@@ -296,7 +296,7 @@ class Client {
    *
    * @param {string} resourceType The resource type that the object is for. "Property" is the usual value.
    * @param {string} type The type of object to get
-   * @param {string|number|object|Array} ids The ids information
+   * @param {string|object|Array} ids The ids information
    * @param {object} options Options for the request
    * @returns {Promise}
    */
