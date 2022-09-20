@@ -372,7 +372,7 @@ var Client = class {
   getImage(resourceType, imageType, resourceId, imageNumber) {
     return __async(this, null, function* () {
       const ids = {
-        [resourceId]: imageNumber
+        [resourceId.toString()]: imageNumber
       };
       return new Promise((resolve, reject) => {
         this.getObjects(resourceType, imageType, ids).then((response) => {
@@ -386,9 +386,23 @@ var Client = class {
   getImages(resourceType, imageType, resourceId, imageNumber) {
     return __async(this, null, function* () {
       const ids = {
-        [resourceId]: imageNumber
+        [resourceId.toString()]: imageNumber
       };
       return this.getObjects(resourceType, imageType, ids);
+    });
+  }
+  getObject(resourceType, type, resourceId, objectId) {
+    return __async(this, null, function* () {
+      const ids = {
+        [resourceId.toString()]: objectId
+      };
+      return new Promise((resolve, reject) => {
+        this.getObjects(resourceType, type, ids).then((response) => {
+          resolve(response.shift());
+        }).catch((error) => {
+          reject(error);
+        });
+      });
     });
   }
   getObjects(resourceType, type, ids, options) {

@@ -12,7 +12,7 @@ Spec is based on <https://www.nar.realtor/retsorg.nsf/retsproto1.7d6.pdf> and <h
 
 The Client constructor takes the login URL and a settings object.
 
-****new Client(loginUrl: string, options: object)***
+`new Client(loginUrl: string, options: object)`
 
 ### Settings
 
@@ -44,9 +44,9 @@ const client = new Client('https://retsdomain.com/path/Login', clientSettings);
 
 ## Logging in and logging out
 
-****.login(): Promise****
+`.login(): Promise<boolean>`
 
-****.logout(): Promise****
+`.logout(): Promise<boolean>`
 
 ```javascript
 client.login()
@@ -78,15 +78,79 @@ try {
 }
 ```
 
+### login() return data
+
+The `login` method will return a Promise. The resolved value is `true`.
+
+### logout() return data
+
+The `logout` method will return a Promise. The resolved value is `true`.
+
 ## Getting objects
 
 When getting objects you have the choice to get one object, multiple objects, or all of the objects for a resource.
 
+### Get a single object
+
+`.getObject(resourceType: string, type: string, resourceId: string|number, objectId: string|number): Promise<object>`
+
+This will retrieve and return a single object.
+
+Where [getObjects](#get-multiple-objects) returns an array of objects, this will return a single object. Even if multiple objects are retrieved, only the first object is returned.
+
+#### getObject() Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| resourceType | string | The resource type. For example, "Property" |
+| type | string | The object type. Example: "Photo" or "Thumbnail" |
+| resourceId | string or number | The ids of the objects to retrieve combined with the resource id. |
+| objectId | string or number | The identifier for the object. |
+
+#### getObject() return value
+
+The `getObject` method will return a promise. The resolved value is an object containing the retrieved object.
+
+```javascript
+{
+    contentType: string,
+    data: Buffer or string
+}
+```
+
+| Name | Type | Description |
+|---|---|---|
+| contentType | string | The value of the `Content-Type` header. |
+| data | Buffer or object | If the object is a media type like an image then the value is a Buffer. If the returned object is XML then this will be a JSON representation of that XML. |
+
+#### getObject() example
+
+```javascript
+client.getObject('Property', 'Thumbnail', parts[3], parseInt(parts[4], 10))
+    .then((objects) => {
+        if (!objects.contentType.includes('xml')) {
+            const writeStream = fs.createWriteStream(parts[4]);
+            writeStream.write(objects.data, 'base64');
+        }
+        client.logout()
+            .then(() => {
+                console.log('LOGGED OUT');
+            })
+            .catch((error) => {
+                console.log('error logging out');
+            });
+    })
+    .catch((error) => {
+        console.log('error getting image: ', error);
+    })
+
+```
+
 ### Get multiple objects
 
-****.getObjects(resourceType: string, type: string, ids: string|number|string[]|number[]|object)****
+`.getObjects(resourceType: string, type: string, ids: string|string[]|object): Promise<object[]>`
 
-#### Parameters
+#### getObjects() Parameters
 
 | Name | Type | Description |
 |---|---|---|
@@ -99,7 +163,7 @@ When getting objects you have the choice to get one object, multiple objects, or
 
 The `ids` value is a combination of the resource id and the identifier for the object to return For example, with images, it's typically the image number to return. "3" would refer to the third image. [3, 5] would refer to the third and fifth images.
 
-The `ids` value can be set in a few different ways. 
+The `ids` value can be set in a few different ways.
 
 For the examples below we will use `1234567890` for the resource id and `3` for the object id. In this case it'll be the image id for the third image.
 
@@ -164,44 +228,55 @@ The following values are available for the `options` parameter.
 | location | integer | Whether to include the location (URL) data for the object only. 0 or 1. Defaults to 0. If 1, then only the URL for the object will be returned. |
 | mime | string | The mime type to accept. This is used to build out the `Accept` header. If not set then `*/*` is used. |
 
+### getObjects() return value
 
-Example:
+The `getObjects` method will return a promise. The resolved value is an array containing the data for one or more retrieved objects.
+
+```javascript
+[
+    {
+        contentType: string,
+        data: Buffer or string
+    }
+]
+```
+
+| Name | Type | Description |
+|---|---|---|
+| contentType | string | The value of the `Content-Type` header. |
+| data | Buffer or object | If the object is a media type like an image then the value is a Buffer. If the returned object is XML then this will be a JSON representation of that XML. |
+
+#### getObjects() example
 
 ```javascript
 import fs from 'fs';
 
-client.login()
-    .then(() => {
-        client.getObjects('Property', 'Photo', {
-            '10190712134022552561000000':[1,2,3,4,5],
-            '10190602181039375284000000':'7',
-            '10190808180154120205000000':8
-        })
-            .then((objects) => {
-                if (Array.isArray(objects)) {
-                    objects.forEach((object) => {
-                        if (!object.contentType.includes('xml')) {
-                            console.log('write to: ', `${object.headers['object-id']}.jpg`);
-                            const writeStream = fs.createWriteStream(`${object.headers['object-id']}.jpg`);
-                            writeStream.write(object.data, 'base64');
-                        } 
-                    });
-                }
-                client.logout()
-                    .then(() => {
-                        console.log('LOGGED OUT');
-                    })
-                    .catch((error) => {
-                        console.log('error logging out');
-                    })
+client.getObjects('Property', 'Photo', {
+    '10190712134022552561000000':[1,2,3,4,5],
+    '10190602181039375284000000':'7',
+    '10190808180154120205000000':8
+})
+    .then((objects) => {
+        if (Array.isArray(objects)) {
+            objects.forEach((object) => {
+                if (!object.contentType.includes('xml')) {
+                    console.log('write to: ', `${object.headers['object-id']}.jpg`);
+                    const writeStream = fs.createWriteStream(`${object.headers['object-id']}.jpg`);
+                    writeStream.write(object.data, 'base64');
+                } 
+            });
+        }
+        client.logout()
+            .then(() => {
+                console.log('LOGGED OUT');
             })
             .catch((error) => {
-                console.log('error getting image: ', error);
+                console.log('error logging out');
             })
     })
     .catch((error) => {
-        console.log('Error logging in: ', error);
-    });
+        console.log('error getting image: ', error);
+    })
 ```
 
 ## Getting images

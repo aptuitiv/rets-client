@@ -256,7 +256,7 @@ class Client {
     imageNumber?: string | number,
   ): Promise<GetObjectItem> {
     const ids = {
-      [resourceId]: imageNumber,
+      [resourceId.toString()]: imageNumber,
     };
     return new Promise((resolve, reject) => {
       this.getObjects(resourceType, imageType, ids)
@@ -286,9 +286,34 @@ class Client {
     imageNumber?: string | number | string[] | number[],
   ): Promise<GetObjectResponse> {
     const ids = {
-      [resourceId]: imageNumber,
+      [resourceId.toString()]: imageNumber,
     };
     return this.getObjects(resourceType, imageType, ids);
+  }
+
+  /**
+   * Get a single object
+   *
+   * @param {string} resourceType The resource type that the image is for. "Property" is the usual value.
+   * @param {string} type The type of object to get.
+   * @param {string|number} resourceId The ID of the resource that photos are assigned to. This could be the property id.
+   * @param {string|number} objectId The object id to get.
+   * @returns {Promise}
+   */
+  async getObject(resourceType: string, type: string, resourceId: string|number, objectId: string|number) {
+    const ids = {
+      [resourceId.toString()]: objectId,
+    };
+    return new Promise((resolve, reject) => {
+      this.getObjects(resourceType, type, ids)
+        .then((response) => {
+          // The response is an array of object. This will return just one object so get the first one
+          resolve(response.shift());
+        })
+        .catch((error) => {
+          reject(error);
+        });
+    });
   }
 
   /**
