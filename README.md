@@ -178,7 +178,7 @@ The `ids` value can be set in a few different ways.
 
 For the examples below we will use `1234567890` for the resource id and `3` for the object id. In this case it'll be the image id for the third image.
 
-**In each case the resource id should be a string. If it's a number then axios may convert it to an exponent.**
+**In each case the resource id should be a string. If it's a number and it's large like most resource ids are, then it may get interpreted by Javascript as an exponent.**
 
 - string: In this case only the single object that matches the identifier will be returned. It should be in this format: `RESOURCE_ID:OBJECT_ID`. For example `1234567890:3`.
 - "*": This is a special string value that tells the RETS server to return all of the object type for the resource. It should be in this format: `RESOURCE_ID:*`. For example `'1234567890:*'`.
